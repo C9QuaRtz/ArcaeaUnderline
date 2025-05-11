@@ -104,6 +104,7 @@ def loadConfig():
             except Exception as e:
                 exit(e)
             loadConfig()
+            return
             
     cookie = f'sid={config["Cookie"]['sid']}; ctrcode={config["Cookie"]['ctrcode']}'
     vip = config['isVIP']
