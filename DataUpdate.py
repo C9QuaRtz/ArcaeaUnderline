@@ -3,6 +3,7 @@ import json
 import math
 import os
 import yaml
+import subprocess
 
 from tqdm import tqdm
 from bs4 import BeautifulSoup
@@ -43,6 +44,18 @@ headersList = {
         'sec-ch-ua-platform': '"Windows"'
     }
 }
+configTemplate = """# 要把账密都写在小引号里哦，不要把引号删掉了喵ο(=•ω＜=)ρ⌒☆
+
+username: {username} # 在这里填入主人的ID喵~
+password: {password} # 这里填上主人的密码哦（本喵不会偷看的www
+
+isVIP: {isVIP} # 主人有订阅 Arcaea Online 喵？如果有的话，就把这个直接改成 True 来启用更多功能吧~
+
+Cookie: {Cookie} # 如果主人看不懂的话就不用管这行啦，交给本喵处理就好哦
+
+monitaringu:
+    userID: []
+    Cookie: ''"""
 
 def extract_with_bs4(content, tag_name, **attrs):
     soup = BeautifulSoup(content, 'html.parser')
@@ -63,9 +76,14 @@ def WhichDifficulty(a):
         return '[ETR]'
 
 def create_config_file():
-    config = 'isVIP: False # 主人有订阅 Arcaea Online 喵？如果有的话，就把这个直接改成 True 来启用更多功能吧~\n\nheaders:\n    Cookie: \'\' # 在小引号里面填入你的 Cookie 哦，不要把引号删掉了喵ο(=•ω＜=)ρ⌒☆'
     with open('config.yaml', 'w', encoding='utf-8') as f:
-        f.write(config)
+        tmp = {
+            'username': '\'\'',
+            'password': '\'\'',
+            'isVIP': False,
+            'Cookie': '\'\''
+        }
+        f.write(configTemplate.format(**tmp))
     print("\n唔…… 没找到配置文件的说~(。>︿<)_\n本喵已经帮你创建好啦，填上去就行喵~")
     exit(1)
 
@@ -77,11 +95,18 @@ def loadConfig():
 
     with open('config.yaml', 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f)
-        if 'headers' not in config or 'Cookie' not in config['headers'] or not config['headers']['Cookie'] or type(config['headers']['Cookie']) != str or 'isVIP' not in config or type(config['isVIP']) != bool:
-            print("\n欸…人家看不懂你的配置文件啦……(σ｀д′)σ\n再检查一下，试试找找问题喵？")
-            exit(1)
-        cookie = config['headers']['Cookie']
-        vip = config['isVIP']
+        if not config['Cookie']:
+            if type(config['username']) != str or type(config['password']) != str:
+                print("\n欸…账密格式填的不对呢……(σ｀д′)σ\n应该都有用小引号围起来的吧？")
+                exit(1)
+            try:
+                subprocess.run(["python", "cookiesTasty.py"])
+            except Exception as e:
+                exit(e)
+            loadConfig()
+            
+    cookie = f'sid={config["Cookie"]['sid']}; ctrcode={config["Cookie"]['ctrcode']}'
+    vip = config['isVIP']
 
 def jsonSave(data, filename: str) -> None:
     with open(filename, "w", encoding="utf-8") as f:
@@ -103,7 +128,10 @@ def simple_get(
         response = requests.get(url + args, headers=headers)
         response.raise_for_status()
         return response.text
+    
     except Exception as err:
+        if "400" in str(err):
+            exit(f"呜哇！Σ(っ °Д °;)っ和Ai酱交流的时候连接突然炸掉啦！问题好像是这个呢: \n{err}\n\ntips: 试试重新再填一遍账密喵…？")
         exit(f"呜哇！Σ(っ °Д °;)っ和Ai酱交流的时候连接突然炸掉啦！问题好像是这个呢: \n{err}")
 
 
@@ -116,7 +144,8 @@ if __name__ == "__main__":
     print("哼哼~ 伪装成功了喵！(￣y▽,￣)╭ ", end='')
     print("接下来就去跟Ai酱打小报告啦…… \n")
 
-    print("第一步就先把主人的个人数据拿到手喵ο(=•ω＜=)ρ⌒☆…… ", end='')
+    print("第一步就先把主人的个人数据拿到手喵ο(=•ω＜=)ρ⌒☆……", end='')
+
     args = '/webapi/user/me'
     result = json.loads(simple_get(args))
     jsonSave(result, 'me.json')
@@ -191,13 +220,11 @@ if __name__ == "__main__":
                 FullScore[WhichDifficulty(difficulty)[1:-1]][song] = result["value"]["scores"][i]
 
                 try:
-                    FullScore[WhichDifficulty(difficulty)[1:-1]][song]['const'] = cc[song][difficulty]['constant']               
+                    FullScore[WhichDifficulty(difficulty)[1:-1]][song]['const'] = cc[song][difficulty]['constant']
+                
                 except Exception as error:
                     print(f"欸… 定数表里 {song} 的 {WhichDifficulty(difficulty)} 数据好像有点问题呢…… 那就随便填一个空值吧~\n{error}")
                     FullScore[WhichDifficulty(difficulty)[1:-1]][song]['const'] = None
     
     jsonSave(FullScore, 'FullScore.json')
     print("嗯嗯，这样工作就结束啦~ 想要主人摸摸头作为奖励喵(*/ω＼*)")
-
-else:
-    exit("啊咧咧……？怎、怎么能这样调用本喵呢⁄(⁄⁄•⁄ω⁄•⁄⁄)⁄\n不可以啦绝对不行！")
