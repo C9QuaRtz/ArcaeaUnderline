@@ -4,9 +4,11 @@ import math
 import os
 import yaml
 import subprocess
+import getpass
 
 from tqdm import tqdm
 from bs4 import BeautifulSoup
+from pwdCrypt import *
 
 global cookie
 global vip
@@ -76,16 +78,19 @@ def WhichDifficulty(a):
         return '[ETR]'
 
 def create_config_file():
+    print("\n唔…… 没找到配置文件的说~(。>︿<)_\n那就偷偷把你的账号和密码告诉本喵吧~\n")
+    username = input("首先是你的用户名哦：")
+    password = getpass.getpass("接下来是密码喵，本喵用了隐式输入，相信你一次就能成功的（可以开始按键盘了哦~")
+    cipher = StableAESCipher(get_device_fingerprint())
+
     with open('config.yaml', 'w', encoding='utf-8') as f:
         tmp = {
-            'username': '\'\'',
-            'password': '\'\'',
+            'username': username,
+            'password': cipher.encrypt(password),
             'isVIP': False,
             'Cookie': '\'\''
         }
         f.write(configTemplate.format(**tmp))
-    print("\n唔…… 没找到配置文件的说~(。>︿<)_\n本喵已经帮你创建好啦，填上去就行喵~")
-    exit(1)
 
 def loadConfig():
     global cookie
@@ -101,10 +106,10 @@ def loadConfig():
                 exit(1)
             try:
                 subprocess.run(["python", "cookiesTasty.py"])
+                loadConfig()
+                return
             except Exception as e:
-                exit(e)
-            loadConfig()
-            return
+                exit(f"呜哇！Σ(っ °Д °;)っ跟Ai酱报道的时候连接突然炸掉啦！问题好像是这个呢: \n{e}")
             
     cookie = f'sid={config["Cookie"]['sid']}; ctrcode={config["Cookie"]['ctrcode']}'
     vip = config['isVIP']
@@ -132,7 +137,7 @@ def simple_get(
     
     except Exception as err:
         if "400" in str(err):
-            exit(f"呜哇！Σ(っ °Д °;)っ和Ai酱交流的时候连接突然炸掉啦！问题好像是这个呢: \n{err}\n\ntips: 试试重新再填一遍账密喵…？")
+            exit(f"呜哇！Σ(っ °Д °;)っ和Ai酱交流的时候连接突然炸掉啦！问题好像是这个呢: \n{err}\n\ntips: 试试删掉 config.yaml，重新再来一遍喵…？")
         exit(f"呜哇！Σ(っ °Д °;)っ和Ai酱交流的时候连接突然炸掉啦！问题好像是这个呢: \n{err}")
 
 
@@ -152,11 +157,17 @@ if __name__ == "__main__":
     jsonSave(result, 'me.json')
     print("成功啦φ(≧ω≦*)♪\n")
 
-    if not vip:
+    if result['value']['arcaea_online_expire_ts'] == 0:
         print("呜呜… 主人没有订阅 Arcaea Online 的说……\n本喵只能帮你抓到这份数据了，对不起喵…o(TヘTo)\n")
         print("如果觉得本喵看错了的话，就在 config.yaml 里把 isVIP 的值改成 True 再试试喵~\n")
         exit(1)
     
+    with open('config.yaml', 'r', encoding='utf-8') as file:
+        config = yaml.safe_load(file)
+    config['isVIP'] = True
+    with open('config.yaml', 'w', encoding='utf-8') as file:
+        file.write(configTemplate.format(**config))
+
     print("之后就来把所有 PTT 的变动记录抓过来吧~", end='')
     args = '/webapi/score/rating_progression/me?duration=5y'
     result = json.loads(simple_get(args))

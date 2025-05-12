@@ -2,6 +2,7 @@ import requests
 import json
 import yaml
 from DataUpdate import configTemplate
+from pwdCrypt import *
 
 def get_login_cookies(login_url, credentials):
     """通过POST登录获取网站Cookie"""
@@ -34,10 +35,12 @@ def get_login_cookies(login_url, credentials):
 # 使用示例
 login_url = 'https://webapi.lowiro.com/auth/login'
 
+cipher = StableAESCipher(get_device_fingerprint())
+
 with open('config.yaml', 'r', encoding='utf-8') as file:
     config = yaml.safe_load(file)
     username = config['username']
-    password = config['password']
+    password = cipher.decrypt(config['password'])
 
 credentials = {
     'email': username,
