@@ -9,55 +9,12 @@ import getpass
 from tqdm import tqdm
 from bs4 import BeautifulSoup
 from pwdCrypt import *
+from cookiesTasty import tastyCookies
+from template import *
 
-global cookie
-global vip
-headersList = {
-    'lowiro': {
-        'Accept': 'application/json, text/plain, */*',
-        'Cookie': '',
-        'Dnt': '1',
-        'Origin': 'https://arcaea.lowiro.com',
-        'Priority': 'u=1, i',
-        'Referer': 'https://arcaea.lowiro.com/',
-        'Sec-Ch-Ua': '"Microsoft Edge";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-site',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0'
-    },
-    'mcd': {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br, zstd',
-        'Accept-Language': 'zh-CN,zh;q=0.9',
-        'Connection': 'keep-alive',
-        'DNT': '1',
-        'Host': 'arcwiki.mcd.blue',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0',
-        'sec-ch-ua': '"Microsoft Edge";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"'
-    }
-}
-configTemplate = """# 要把账密都写在小引号里哦，不要把引号删掉了喵ο(=•ω＜=)ρ⌒☆
-
-username: {username} # 在这里填入主人的ID喵~
-password: {password} # 这里填上主人的密码哦（本喵不会偷看的www
-
-isVIP: {isVIP} # 主人有订阅 Arcaea Online 喵？如果有的话，就把这个直接改成 True 来启用更多功能吧~
-
-Cookie: {Cookie} # 如果主人看不懂的话就不用管这行啦，交给本喵处理就好哦
-
-monitaringu:
-    userID: []
-    Cookie: ''"""
+cookie : str
+vip : bool
+retry = 3
 
 def extract_with_bs4(content, tag_name, **attrs):
     soup = BeautifulSoup(content, 'html.parser')
@@ -88,31 +45,38 @@ def create_config_file():
             'username': username,
             'password': cipher.encrypt(password),
             'isVIP': False,
-            'Cookie': '\'\''
+            'Cookie': 'SANA♡TSU Chocolate Cookie 12枚入'
         }
         f.write(configTemplate.format(**tmp))
 
-def loadConfig():
-    global cookie
-    global vip
+def loadConfig(refreshCookie = False):
     if not os.path.exists('config.yaml'):
         create_config_file()
 
-    with open('config.yaml', 'r', encoding='utf-8') as f:
-        config = yaml.safe_load(f)
-        if not config['Cookie']:
-            if type(config['username']) != str or type(config['password']) != str:
-                print("\n欸…账密格式填的不对呢……(σ｀д′)σ\n应该都有用小引号围起来的吧？")
-                exit(1)
-            try:
-                subprocess.run(["python", "cookiesTasty.py"])
-                loadConfig()
-                return
-            except Exception as e:
-                exit(f"呜哇！Σ(っ °Д °;)っ跟Ai酱报道的时候连接突然炸掉啦！问题好像是这个呢: \n{e}")
-            
-    cookie = f'sid={config["Cookie"]['sid']}; ctrcode={config["Cookie"]['ctrcode']}'
-    vip = config['isVIP']
+    for i in range(retry):
+        with open('config.yaml', 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+            if not config:
+                create_config_file()
+                i -= 1
+                continue
+
+            if refreshCookie:
+                config['Cookie'] = ''
+                refreshCookie = False
+
+            if config['Cookie'] == 'SANA♡TSU Chocolate Cookie 12枚入':
+                if type(config['username']) != str or type(config['password']) != str:
+                    exit("\n欸…账密格式填的不对呢……(σ｀д′)σ\n应该都有用小引号围起来的吧？")
+                try:
+                    tastyCookies()
+                    continue
+                except Exception as e:
+                    print(f"呜哇！Σ(っ °Д °;)っ跟Ai酱报道的时候连接突然炸掉啦！问题好像是这个呢: \n{e}\n\n正在尝试第 {i + 1} 次喵……")
+            else:
+                return f'sid={config["Cookie"]['sid']}; ctrcode={config["Cookie"]['ctrcode']}', config['isVIP']
+
+    exit("呜哇！Σ(っ °Д °;)っ本喵好像没办法伪装成主人的样子了呢……要不过会再试试喵？")
 
 def jsonSave(data, filename: str) -> None:
     with open(filename, "w", encoding="utf-8") as f:
@@ -123,22 +87,29 @@ def simple_get(
         url = "https://webapi.lowiro.com",
         headers = None
     ):
-    try:
-        global cookie
-        global headersList
+    global cookie
+    global vip
+    global headersList
+    reFreshed = False
+
+    for i in range(retry):
+        try:
+            if not headers:
+                headers = headersList['lowiro']
+                headers['Cookie'] = cookie
+            
+            response = requests.get(url + args, headers=headers)
+            response.raise_for_status()
+            return response.text
         
-        if not headers:
-            headers = headersList['lowiro']
-            headers['Cookie'] = cookie
-        
-        response = requests.get(url + args, headers=headers)
-        response.raise_for_status()
-        return response.text
+        except Exception as err:
+            if "400" in str(err) and not reFreshed:
+                print(f'\n呜哇！Σ(っ °Д °;)っ被Ai酱认出来了吗？！ 再试试用账密伪装一次喵……')
+                cookie, vip = loadConfig(True)
+                reFreshed = True
+            print(f"呜哇！Σ(っ °Д °;)っ和Ai酱交流的时候连接突然炸掉啦！问题好像是这个呢: \n{err}\n\n正在尝试第 {i + 1} 次喵……")
     
-    except Exception as err:
-        if "400" in str(err):
-            exit(f"呜哇！Σ(っ °Д °;)っ和Ai酱交流的时候连接突然炸掉啦！问题好像是这个呢: \n{err}\n\ntips: 试试删掉 config.yaml，重新再来一遍喵…？")
-        exit(f"呜哇！Σ(っ °Д °;)っ和Ai酱交流的时候连接突然炸掉啦！问题好像是这个呢: \n{err}")
+    exit(f"呜呜呜……ヽ(*。>Д<)o゜ 连接不到Ai酱了喵……等一会再试试看吧？")
 
 
 if __name__ == "__main__":
@@ -146,7 +117,7 @@ if __name__ == "__main__":
     print("\n嗯嗯，开始工作了喵！╰(￣ω￣ｏ) 加油加油~\n")
     
     print("正在尝试伪装成主人的样子喵…… ")
-    loadConfig()
+    cookie, vip = loadConfig()
     print("哼哼~ 伪装成功了喵！(￣y▽,￣)╭ ", end='')
     print("接下来就去跟Ai酱打小报告啦…… \n")
 
@@ -228,7 +199,9 @@ if __name__ == "__main__":
             result = json.load(f)
 
             for i in range(len(result["value"]["scores"])):
+
                 song = result["value"]["scores"][i]["song_id"]
+
                 FullScore[WhichDifficulty(difficulty)[1:-1]][song] = result["value"]["scores"][i]
 
                 try:
@@ -239,4 +212,5 @@ if __name__ == "__main__":
                     FullScore[WhichDifficulty(difficulty)[1:-1]][song]['const'] = None
     
     jsonSave(FullScore, 'FullScore.json')
+
     print("嗯嗯，这样工作就结束啦~ 想要主人摸摸头作为奖励喵(*/ω＼*)")

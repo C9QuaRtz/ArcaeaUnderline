@@ -14,7 +14,7 @@ class StableAESCipher:
         :param salt: 固定盐值（建议至少16字节，不传则使用默认值）
         """
         # 固定盐值（确保相同密码每次生成相同密钥）
-        self.salt = salt if salt else str.encode('特调卤汁小鱼干')  # 实际使用应改为随机生成后固定
+        self.salt = salt if salt else str.encode('https://maimai.sega.jp/root/assets/pc/chara/chara-right.png')  # 实际使用应改为随机生成后固定
         
         # 派生密钥（参数固定则结果固定）
         self.key = PBKDF2(password, self.salt, dkLen=32, count=1000000)

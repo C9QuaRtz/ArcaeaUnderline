@@ -1,7 +1,7 @@
 import requests
 import json
 import yaml
-from DataUpdate import configTemplate
+from template import configTemplate
 from pwdCrypt import *
 
 def get_login_cookies(login_url, credentials):
@@ -33,24 +33,32 @@ def get_login_cookies(login_url, credentials):
         return None
 
 # 使用示例
-login_url = 'https://webapi.lowiro.com/auth/login'
+def tastyCookies(filename = 'config.yaml'):
+    isCustom = (filename != 'config.yaml')
 
-cipher = StableAESCipher(get_device_fingerprint())
+    login_url = 'https://webapi.lowiro.com/auth/login'
 
-with open('config.yaml', 'r', encoding='utf-8') as file:
-    config = yaml.safe_load(file)
-    username = config['username']
-    password = cipher.decrypt(config['password'])
+    cipher = StableAESCipher(get_device_fingerprint())
 
-credentials = {
-    'email': username,
-    'password': password,
-    'remember_me': 'true'  # 有些网站需要这个参数来持久化Cookie
-}
-cookies = get_login_cookies(login_url, credentials)
-if cookies:
-    config['Cookie'] = cookies
-    with open('config.yaml', 'w', encoding='utf-8') as file:
-        file.write(configTemplate.format(**config))
-else:
-    print("获取Cookie失败")
+    with open((filename if isCustom else 'config.yaml'), 'r', encoding='utf-8') as file:
+        config = yaml.safe_load(file)
+        username = config['username']
+        password = cipher.decrypt(config['password'])
+
+    credentials = {
+        'email': username,
+        'password': password,
+        'remember_me': 'true'  # 有些网站需要这个参数来持久化Cookie
+    }
+    cookies = get_login_cookies(login_url, credentials)
+    if cookies:
+        config['Cookie'] = cookies
+        if not isCustom:
+            with open('config.yaml', 'w', encoding='utf-8') as file:
+                file.write(configTemplate.format(**config))
+        else:
+            with open(filename, 'w', encoding='utf-8') as file:
+                yaml.dump(config, file, allow_unicode=True)
+                
+    else:
+        print("获取Cookie失败")
