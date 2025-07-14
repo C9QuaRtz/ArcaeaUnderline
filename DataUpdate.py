@@ -1,28 +1,19 @@
-import requests
 import json
 import math
 import os
 import yaml
-import subprocess
 import getpass
 
 from tqdm import tqdm
-from bs4 import BeautifulSoup
 from pwdCrypt import *
-from cookiesTasty import tastyCookies
 from template import *
+from webConnect import jsonSave, getChartConstant, simple_get
 
 cookie : str
 vip : bool
 retry = 3
-
-def extract_with_bs4(content, tag_name, **attrs):
-    soup = BeautifulSoup(content, 'html.parser')
-    elements = soup.find_all(tag_name, attrs=attrs)
-    results = [element.get_text() for element in elements]
-    return results
-
-def WhichDifficulty(a):
+    
+def WhichDifficulty(a) -> str:
     if a == 0:
         return '[PST]'
     if a == 1:
@@ -33,6 +24,7 @@ def WhichDifficulty(a):
         return '[BYD]'
     if a == 4:
         return '[ETR]'
+    return '[???]'
 
 def create_config_file():
     print("\n唔…… 没找到配置文件的说~(。>︿<)_\n那就偷偷把你的账号和密码告诉本喵吧~\n")
@@ -45,79 +37,20 @@ def create_config_file():
             'username': username,
             'password': cipher.encrypt(password),
             'isVIP': False,
-            'Cookie': 'SANA♡TSU Chocolate Cookie 12枚入'
         }
         f.write(configTemplate.format(**tmp))
 
-def loadConfig(refreshCookie = False):
+def loadConfig():
     if not os.path.exists('config.yaml'):
         create_config_file()
-
-    for i in range(retry):
-        with open('config.yaml', 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-            if not config:
-                create_config_file()
-                i -= 1
-                continue
-
-            if refreshCookie:
-                config['Cookie'] = ''
-                refreshCookie = False
-
-            if config['Cookie'] == 'SANA♡TSU Chocolate Cookie 12枚入':
-                if type(config['username']) != str or type(config['password']) != str:
-                    exit("\n欸…账密格式填的不对呢……(σ｀д′)σ\n应该都有用小引号围起来的吧？")
-                try:
-                    tastyCookies()
-                    continue
-                except Exception as e:
-                    print(f"呜哇！Σ(っ °Д °;)っ跟Ai酱报道的时候连接突然炸掉啦！问题好像是这个呢: \n{e}\n\n正在尝试第 {i + 1} 次喵……")
-            else:
-                return f'sid={config["Cookie"]['sid']}; ctrcode={config["Cookie"]['ctrcode']}', config['isVIP']
-
-    exit("呜哇！Σ(っ °Д °;)っ本喵好像没办法伪装成主人的样子了呢……要不过会再试试喵？")
-
-def jsonSave(data, filename: str) -> None:
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-def simple_get(
-        args: str,
-        url = "https://webapi.lowiro.com",
-        headers = None
-    ):
-    global cookie
-    global vip
-    global headersList
-    reFreshed = False
-
-    for i in range(retry):
-        try:
-            if not headers:
-                headers = headersList['lowiro']
-                headers['Cookie'] = cookie
-            
-            response = requests.get(url + args, headers=headers)
-            response.raise_for_status()
-            return response.text
-        
-        except Exception as err:
-            if "400" in str(err) and not reFreshed:
-                print(f'\n呜哇！Σ(っ °Д °;)っ被Ai酱认出来了吗？！ 再试试用账密伪装一次喵……')
-                cookie, vip = loadConfig(True)
-                reFreshed = True
-            print(f"呜哇！Σ(っ °Д °;)っ和Ai酱交流的时候连接突然炸掉啦！问题好像是这个呢: \n{err}\n\n正在尝试第 {i + 1} 次喵……")
     
-    exit(f"呜呜呜……ヽ(*。>Д<)o゜ 连接不到Ai酱了喵……等一会再试试看吧？")
-
 
 if __name__ == "__main__":
 
     print("\n嗯嗯，开始工作了喵！╰(￣ω￣ｏ) 加油加油~\n")
     
     print("正在尝试伪装成主人的样子喵…… ")
-    cookie, vip = loadConfig()
+    loadConfig()
     print("哼哼~ 伪装成功了喵！(￣y▽,￣)╭ ", end='')
     print("接下来就去跟Ai酱打小报告啦…… \n")
 
@@ -174,18 +107,8 @@ if __name__ == "__main__":
         print(f"好耶！顺利把 {WhichDifficulty(difficulty)} 的所有数据都拿到手啦ヾ(≧∇≦*)ヾ\n")
     
     print("接下来的话，就去问问红要定数表啦(○｀ 3′○)\n")
-    cc = extract_with_bs4(
-        simple_get(
-            url = "https://arcwiki.mcd.blue",
-            args = '/index.php?title=Template:ChartConstant.json&action=edit',
-            headers = headersList['mcd']
-        ),
-        'textarea',
-        id = 'wpTextbox1'
-    )[0]
-    cc = json.loads(cc)
-    jsonSave(cc, 'ChartConstant.json')
-        
+
+    cc = getChartConstant()
     print("好，定数表也没问题啦(*￣3￣)╭ 接下来就把所有东西整理到一起吧~\n")
     FullScore = {
         'PST': {},

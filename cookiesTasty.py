@@ -40,7 +40,7 @@ def tastyCookies(filename = 'config.yaml'):
 
     cipher = StableAESCipher(get_device_fingerprint())
 
-    with open((filename if isCustom else 'config.yaml'), 'r', encoding='utf-8') as file:
+    with open(filename, 'r', encoding='utf-8') as file:
         config = yaml.safe_load(file)
         username = config['username']
         password = cipher.decrypt(config['password'])
@@ -61,4 +61,4 @@ def tastyCookies(filename = 'config.yaml'):
                 yaml.dump(config, file, allow_unicode=True)
                 
     else:
-        print("获取Cookie失败")
+        exit("获取Cookie失败")
