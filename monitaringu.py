@@ -10,10 +10,9 @@ import sys
 import os
 import urllib.parse
 import traceback
+import asyncio
+import math
 
-pttCheck: dict = {
-    'isInit': True
-}
 coolDown: int = 60
 lastInfo: dict = {}
 lastPTT: dict = {}
@@ -27,48 +26,37 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-def visual_countdown_bar(total_seconds, width=coolDown):
+
+async def countdownBar(total_seconds: float, width: int = coolDown, interval: float = 1):
     """
-    创建一个视觉上真正倒退的进度条
+    高级版倒计时进度条（支持浮点秒数）
     
     参数:
-        total_seconds: 总倒计时秒数
-        width: 进度条的宽度
+        description (str): 描述文本
+        total_seconds (float): 总秒数（支持小数）
+        width (int): 进度条宽度
+        interval (float): 更新间隔(秒)
     """
+    # print(f"\n{description}")
     start_time = time.time()
+    end_time = start_time + total_seconds
     
-    # 填充和空字符
-    fill_char = '█'
-    empty_char = '░'
-    
-    while True:
-        # 计算剩余时间
-        current_time = time.time()
-        elapsed_time = current_time - start_time
-        remaining_time = total_seconds - elapsed_time
+    while (remaining := end_time - time.time()) > 0:
+        # 计算进度
+        elapsed = total_seconds - remaining
+        progress = elapsed / total_seconds
+        filled_length = min(width, int(width * progress))
+        bar = '█' * filled_length + '░' * (width - filled_length)
         
-        if remaining_time <= 0:
-            break
-        
-        # 计算进度条长度（从右向左减少）
-        ratio = remaining_time / total_seconds
-        filled_length = int(width * ratio)
-        
-        # 创建进度条（从右到左填充）
-        bar = empty_char * (width - filled_length) + fill_char * filled_length
-        
-        # 剩余秒数（四舍五入到整数）
-        remaining_seconds = round(remaining_time)
-        
-        # 输出进度条
-        sys.stdout.write(f'\rRefresh in: |{bar}| {remaining_seconds}s... ')
+        # 格式化输出
+        # percent = f"{progress * 100:.1f}%"
+        time_info = f"{math.ceil(remaining)}s..."
+        sys.stdout.write(f"\rRefresh in: |{bar}| {time_info}\n")
         sys.stdout.flush()
-        
-        # 短暂暂停以减少CPU使用
-        time.sleep(0.1)
+        await asyncio.sleep(min(interval, remaining))
     
-    # 完成后清空并显示完成消息
-    sys.stdout.write('\r     Refresh|' + empty_char * width + '| Complete.\n')
+    # 倒计时结束后显示完成状态
+    sys.stdout.write(f"\r    Refresh |{'█' * width}| Complete.\n")
     sys.stdout.flush()
 
 def fileRec(data):
@@ -100,32 +88,6 @@ def fileRec(data):
         print(f'{data['name']}\'s Log continues, skipping...')
         return False
 
-def pttDiff(user_id, ptt) -> str:
-    global pttCheck
-    if pttCheck['isInit']:
-        pttCheck[f'{user_id}'] = {}
-        pttCheck[f'{user_id}']['value'] = ptt
-        pttCheck[f'{user_id}']['time'] = time.time() * 1000
-        return f'PTT = {ptt / 100}'
-    else:
-        tmp = pttCheck[f'{user_id}']['value']
-        if ptt == -1:
-            if pttCheck[f'{user_id}']['value'] == -1:
-                return 'PTT Hidden.'
-            t = datetime.fromtimestamp(pttCheck[f'{user_id}']['time'] / 1000).strftime("%m-%d %H:%M:%S")
-            return f'PTT Hidden. ({tmp / 100} at {t})'
-        elif ptt > pttCheck[f'{user_id}']['value']:
-            pttCheck[f'{user_id}']['value'] = ptt
-            pttCheck[f'{user_id}']['time'] = time.time() * 1000
-            return f'PTT = {tmp / 100} +{(ptt - tmp) / 100}'
-        elif ptt < pttCheck[f'{user_id}']['value']:
-            pttCheck[f'{user_id}']['value'] = ptt
-            pttCheck[f'{user_id}']['time'] = time.time() * 1000
-            return f'PTT = {tmp / 100} -{(tmp - ptt) / 100}'
-        else:
-            pttCheck[f'{user_id}']['time'] = time.time() * 1000
-            return f'PTT = {tmp / 100} Keep'
-        
 def dictDiff(old, new):
     return {
         key: [old.get(key), new.get(key)]
@@ -182,7 +144,7 @@ def getSongLink(songName):
     
     return encoded_string
 
-def updateCheck(newData):
+async def updateCheck(newData):
     global lastInfo
     global lastPTT
     updateInfo = {
@@ -263,10 +225,7 @@ def updateCheck(newData):
                 'new': newData['name']
             }
         
-        return updateInfo, True
-    
-    else:
-        return updateInfo, False
+        barkInfoMerge(updateInfo)
     
 def barkInfoMerge(info):
     global barkLevel
@@ -326,7 +285,14 @@ def barkInfoMerge(info):
         print()
 
 
-if __name__ == '__main__':
+async def main():
+    global coolDown
+    global lastInfo
+    global lastPTT
+    global partnerData
+    global constantData
+    global barkLevel
+    global devicesKey
     while 39:
         try:
             args = '/webapi/user/me'
@@ -412,27 +378,52 @@ if __name__ == '__main__':
                     exit(1)
             logging.info('Chart Constant Data Fetched...')
 
-            logging.info("StartUp Finished.")
+            logging.info("StartUp Finished.\n")
+            await countdownBar(coolDown)
             while True:
                 try:
                     
-                    visual_countdown_bar(coolDown)
                     result = json.loads(simple_get(args, accType='monitaringu'))
                     friendList = result['value']['friends']
 
-                    for i in range(len(userID)):
-                        for j in range(len(friendList)):
-                            if userID[i] == friendList[j]['user_id']:
-                                updateInfo, doNotification = updateCheck(friendList[j])
-                                if doNotification:
-                                barkInfoMerge(updateInfo)
+                    tasks = []
+                    try:
+                        async with asyncio.TaskGroup() as tg:
+                            tasks.append(tg.create_task(countdownBar(coolDown)))
+
+                            for i in range(len(userID)):
+                                for j in range(len(friendList)):
+                                    if userID[i] == friendList[j]['user_id']:
+                                        task = tg.create_task(updateCheck(friendList[j]))
+                                        tasks.append(task)
+                                        break
+                    
+                    except* Exception as eg:
+                        for exc in eg.exceptions:
+                            print(f'Error in task: {exc}')
+                            traceback.print_exc()
                                 
                 except Exception as error:
                     logging.error(f'{error}')
                     traceback.print_exc()
     
         except Exception as error:
-            logging.error(f'\n\nError: {error}')
+            logging.critical(f'\n\nFATAL ERROR: {error}')
             traceback.print_exc()
             print(f'Retrying in {coolDown} seconds...')
-            visual_countdown_bar(coolDown)
+            await countdownBar(coolDown)
+
+if __name__ == '__main__':
+    while 39:
+        try:
+            asyncio.run(main())
+        except Exception as error:
+                logging.critical(f'\n\nFATAL ERROR: {error}')
+                traceback.print_exc()
+                print(f'Retrying in {coolDown} seconds', end='')
+                for _ in range(coolDown):
+                    print('.', end='')
+                    time.sleep(1)
+        except KeyboardInterrupt:
+            print('\nExiting...')
+            break
